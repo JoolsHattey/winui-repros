@@ -53,7 +53,7 @@ public partial class App : Application
         fixedButton.Click += (_, _) => fixedButtonMenu.ShowAt(fixedButton, new FlyoutShowOptions
         {
             Placement = FlyoutPlacementMode.BottomEdgeAlignedLeft,
-            ExclusionRect = new Rect(0, 0, fixedButton.ActualWidth, fixedButton.ActualHeight),
+            ExclusionRect = Clear(new Rect(0, 0, fixedButton.ActualWidth, fixedButton.ActualHeight)),
         });
         var fixedContext = Target("Right-click: ContextRequested + FlyoutShowOptions");
         var fixedContextMenu = Menu();
@@ -63,8 +63,10 @@ public partial class App : Application
             var options = new FlyoutShowOptions { Placement = FlyoutPlacementMode.BottomEdgeAlignedLeft };
             if (e.TryGetPosition(fixedContext, out var point))
             {
-                options.Position = point;
-                options.ExclusionRect = new Rect(point.X - 1, point.Y - 1, 2, 2);
+                // WinUI creates the popup window at the position before moving it out of the
+                // exclusion rect, so start below the pointer too.
+                options.Position = new Point(point.X, point.Y + ClearanceBelow);
+                options.ExclusionRect = Clear(new Rect(point.X - 1, point.Y, 2, 0));
             }
             fixedContextMenu.ShowAt(fixedContext, options);
         };
@@ -99,6 +101,13 @@ public partial class App : Application
             root.Loaded += async (_, _) => await RunCases(buttonMenu, contextMenu, combo, fixedButton, fixedContext);
         }
     }
+
+    // The popup window extends past the visible menu by its shadow, about 2 DIPs above it and 18
+    // below, so the menu has to stay this far below or above the area under the pointer.
+    const double ClearanceBelow = 4, ClearanceAbove = 20;
+
+    static Rect Clear(Rect area) =>
+        new(area.X, area.Y - ClearanceAbove, area.Width, area.Height + ClearanceAbove + ClearanceBelow);
 
     MenuFlyout Menu()
     {
@@ -142,6 +151,16 @@ public partial class App : Application
     async Task RunCases(Button buttonMenu, Border contextMenu, ComboBox combo, Button fixedButton, Border fixedContext)
     {
         await Task.Delay(1000);
+        // A process started in the background may not take the foreground by itself; an Alt
+        // press first lets SetForegroundWindow through.
+        SendKey(0x12);
+        SetForegroundWindow(hwnd);
+        await Task.Delay(300);
+        if (GetForegroundWindow() != hwnd)
+        {
+            Stop("the window isn't in front");
+            return;
+        }
         // Pointer on the button 3 px above its bottom edge, where the menu opens below it.
         await Case("Button.Flyout, click near the bottom edge", buttonMenu, 0.5, -3, left: true);
         await Case("Button.Flyout, click in the middle", buttonMenu, 0.5, 0.5, left: true);
@@ -149,9 +168,12 @@ public partial class App : Application
         await Case("ComboBox, click", combo, 0.5, -10, left: true);
         await Case("FlyoutShowOptions button, click near the bottom edge", fixedButton, 0.5, -3, left: true);
         await Case("ContextRequested + FlyoutShowOptions, right-click", fixedContext, 0.3, 0.5, left: false);
-        Log("done");
-        Flush();
-        Exit();
+        if (!stopped)
+        {
+            Log("done");
+            Flush();
+            Exit();
+        }
     }
 
     // x and y are fractions of the element's size, or pixels from its far edge when negative.
@@ -164,8 +186,18 @@ public partial class App : Application
         var client = new POINT { X = (int)((origin.X + dx) * scale), Y = (int)((origin.Y + dy) * scale) };
         ClientToScreen(hwnd, ref client);
 
+        if (stopped)
+        {
+            return;
+        }
         SetCursorPos(client.X, client.Y);
         await Task.Delay(400);
+        // Never click anything but this window.
+        if (GetForegroundWindow() != hwnd || GetAncestor(WindowFromPoint(client), 2) != hwnd)
+        {
+            Stop($"{name}: the pointer isn't over this window");
+            return;
+        }
         Log($"--- {name}: pointer at ({client.X},{client.Y}), cursor {CursorName(CurrentCursor())}");
         caseStart = clock.ElapsedMilliseconds;
         Click(left);
@@ -176,6 +208,15 @@ public partial class App : Application
     }
 
     long caseStart;
+    bool stopped;
+
+    void Stop(string reason)
+    {
+        stopped = true;
+        Log($"stopped: {reason}");
+        Flush();
+        Exit();
+    }
 
     void SampleCursor()
     {
@@ -281,6 +322,9 @@ public partial class App : Application
     [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr window, out RECT rect);
     [DllImport("user32.dll")] static extern bool ClientToScreen(IntPtr window, ref POINT point);
     [DllImport("user32.dll")] static extern uint GetDpiForWindow(IntPtr window);
+    [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr window);
+    [DllImport("user32.dll")] static extern IntPtr GetAncestor(IntPtr window, uint flags);
     [DllImport("user32.dll")] static extern uint SendInput(uint count, INPUT[] inputs, int size);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr window, StringBuilder name, int count);
 }

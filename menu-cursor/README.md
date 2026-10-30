@@ -33,4 +33,18 @@ Keeping the popup window away from the pointer avoids it: `FlyoutShowOptions` wi
 
 ## Results
 
-Not run yet.
+Windows App SDK 2.6.4, `--auto`, 2026-10-30.
+
+Desktop PC (Windows 11 build 26340, 100% scale), cursor sampled every 2 ms:
+
+| Case | Window under the pointer after opening | Cursor |
+|---|---|---|
+| 1. `Button.Flyout`, click near the bottom edge | the menu's popup window | wait, about 16 ms |
+| 2. `Button.Flyout`, click in the middle | the app window | arrow |
+| 3. `ContextFlyout`, right-click | the menu's popup window | wait, about 15 ms |
+| 4. `ComboBox`, click | the drop-down's popup window | wait, still showing 2 s later |
+| 5. `FlyoutShowOptions` button | the app window | arrow |
+
+The visible menu was 117x102 px and its popup window 137x122 px.
+
+Test laptop (Windows 11 build 26200), all six cases: the pointer ended up over the popup window in cases 1, 3 and 4 only. With the clearances above, cases 5 and 6 leave the pointer over the app window. The laptop has no mouse attached, so its cursor is hidden and only the window under the pointer was checked there; case 6 with these clearances hasn't been checked with a visible cursor.
