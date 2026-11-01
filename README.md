@@ -5,6 +5,7 @@ Small, self-contained repros for microsoft-ui-xaml issues. Each folder is one pl
 | Folder | Issue | Checked on |
 |---|---|---|
 | [`minimised-first-layout`](minimised-first-layout) | A `TitleBar` set as the window's title bar fails fast when the window's first layout happens while it's minimised | Windows App SDK 2.5.1 and 2.6.4: reproduces on every run |
+| [`titlebar-padding`](titlebar-padding) | `TitleBar`'s caption-button padding column isn't scaled for the display, so `RightHeader` content stops short of the caption buttons above 100% (#10344) | Windows App SDK 2.6.4: reproduces at 150% |
 | [`menu-cursor`](menu-cursor) | Menus opened at or next to the pointer show the wait cursor or a resize cursor (#8829) | Windows App SDK 2.6.4: reproduces (wait cursor on a button menu, a context menu and a ComboBox) |
 
 Repros for `windows-reactor` (Rust) issues are in [windows-reactor-repros](https://github.com/JoolsHattey/windows-reactor-repros).
