@@ -29,18 +29,30 @@ The app has the WinUI template's `app.manifest` (per-monitor DPI aware). Without
 **Expected:** the gap between the red box and the minimize button is the same as at 100%, and `RightPaddingColumn` is as wide as the caption buttons (`AppWindow.TitleBar.RightInset / XamlRoot.RasterizationScale`).
 **Actual:** `RightPaddingColumn` is `RightInset` read as DIPs, 1.5 times the caption buttons' width, so the gap grows by half the buttons' width.
 
+3. With a second monitor at 100% to the right of a 3840-pixel-wide primary at 150%, run `TitleBarPadding.exe --start 200,200 --move 4200,200`, then `--start 4200,200 --move 200,200`.
+
+**Expected:** `RightPaddingColumn` follows the scale of the monitor the window is on.
+**Actual:** it keeps the width from the monitor the window opened on.
+
 ## Results
 
-Windows 11 Pro 26200, x64, Windows App SDK 2.6.4, one display:
+Windows 11 Pro 26200 and Insider 26340, x64, Windows App SDK 2.6.4. Opened on one monitor:
 
 | Scale | Run | `RightInset` | Caption buttons | `RightPaddingColumn` | Gap before the buttons |
 |---|---|---|---|---|---|
-| 100% (96 DPI)¹ | default | 137 px | 137 DIPs | 137 DIPs | 48 DIPs |
+| 100% | default | 138 px | 138 DIPs | 138 DIPs | 48 DIPs |
 | 150% | default | 207 px | 138 DIPs | **207.3 DIPs** | **117.3 DIPs** |
 | 150% | `--workaround` | 207 px | 138 DIPs | 138 DIPs | 48 DIPs |
 
-¹ The same machine at 150%, with the app built without its manifest, so Windows ran it at 96 DPI (`RasterizationScale` 1).
+Moved to another monitor (26340, primary at 150%, second monitor at 100%), measured 500 ms after the move:
+
+| Run | Opened at | Moved to | `RightPaddingColumn` after the move | Gap before the buttons |
+|---|---|---|---|---|
+| default | 150% | 100% | **207 DIPs** (should be 138) | **117 DIPs** |
+| default | 100% | 150% | 138 DIPs (right only because it opened at 100%) | 48 DIPs |
+| `--workaround` | 150% | 100% | 138 DIPs | 48 DIPs |
+| `--workaround` | 100% | 150% | 138 DIPs | 48 DIPs |
 
 `screenshot-150.png` is the default run at 150%, and `screenshot-150-workaround.png` is the same with `--workaround`.
 
-`TitleBar::UpdatePadding` sets the padding columns from `AppWindowTitleBar.RightInset` and `LeftInset`, which are physical pixels, without dividing by `RasterizationScale`. It also only runs on template apply and on a flow direction change, so a fix needs to run again on `XamlRoot.Changed` as well, or the width goes stale when the window moves to a monitor with another scale or the display scale changes while the app runs (`--move` is for checking that by hand; it hasn't been run here, since the test machine has one display).
+`TitleBar::UpdatePadding` sets the padding columns from `AppWindowTitleBar.RightInset` and `LeftInset`, which are physical pixels, without dividing by `RasterizationScale`. It also only runs on template apply and on a flow direction change, so the width never follows the window to a monitor with another scale. A fix needs to run again on `XamlRoot.Changed` as well.

@@ -1,8 +1,9 @@
 // A window whose title bar is a TitleBar with a red box in RightHeader. Logs the padding column
 // WinUI reserves for the caption buttons next to the width they actually take.
 //
-//   TitleBarPadding.exe [--workaround] [--move <x>,<y>] [--exit-after <ms>]
+//   TitleBarPadding.exe [--workaround] [--start <x>,<y>] [--move <x>,<y>] [--exit-after <ms>]
 //
+// --start        open the window at this screen point (physical pixels)
 // --workaround   set RightPaddingColumn to RightInset / RasterizationScale, on load and on every
 //                XamlRoot.Changed
 // --move         after the first log, move the window to this screen point (physical pixels), to
@@ -21,6 +22,7 @@ namespace TitleBarPadding;
 public partial class App : Application
 {
     readonly bool workaround;
+    readonly Windows.Graphics.PointInt32? start;
     readonly Windows.Graphics.PointInt32? move;
     readonly int exitAfter;
     Window? window;
@@ -37,10 +39,8 @@ public partial class App : Application
             switch (args[i])
             {
                 case "--workaround": workaround = true; break;
-                case "--move":
-                    var xy = args[++i].Split(',');
-                    move = new(int.Parse(xy[0]), int.Parse(xy[1]));
-                    break;
+                case "--start": start = Point(args[++i]); break;
+                case "--move": move = Point(args[++i]); break;
                 case "--exit-after": exitAfter = int.Parse(args[++i]); break;
             }
         }
@@ -70,6 +70,10 @@ public partial class App : Application
         window.ExtendsContentIntoTitleBar = true;
         window.SetTitleBar(titleBar);
         window.AppWindow.Resize(new(900, 400));
+        if (start is { } at)
+        {
+            window.AppWindow.Move(at);
+        }
 
         titleBar.Loaded += (_, _) =>
         {
@@ -81,6 +85,12 @@ public partial class App : Application
                 if (move is { } point)
                 {
                     window.AppWindow.Move(point);
+                    // Once the move's layout has settled, whether or not XamlRoot.Changed fired.
+                    var settled = window.DispatcherQueue.CreateTimer();
+                    settled.Interval = TimeSpan.FromMilliseconds(500);
+                    settled.IsRepeating = false;
+                    settled.Tick += (_, _) => Measure("after the move");
+                    settled.Start();
                 }
             });
         };
@@ -118,6 +128,12 @@ public partial class App : Application
             + $"RasterizationScale={scale} RightInset={inset}px "
             + $"caption buttons={buttons:0.#} DIPs RightPaddingColumn={column.ActualWidth:0.#} DIPs "
             + $"gap before the buttons={gap:0.#} DIPs{(workaround ? " (workaround on)" : "")}");
+    }
+
+    static Windows.Graphics.PointInt32 Point(string xy)
+    {
+        var parts = xy.Split(',');
+        return new(int.Parse(parts[0]), int.Parse(parts[1]));
     }
 
     static void Log(string message)
